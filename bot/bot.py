@@ -11,6 +11,10 @@ dispatcher = updater.dispatcher
 
 handlers = {
     'start': handlers.start,
+    'list': handlers.list_all_subscriptions,
+    'info': handlers.info,
+    'modify': handlers.modify,
+    'subscribe': handlers.subscribe,
 }
 
 if __name__ == '__main__':
@@ -19,4 +23,5 @@ if __name__ == '__main__':
 
     for command, handler in handlers.items():
         dispatcher.add_handler(CommandHandler(command, handler))
+
     updater.start_polling()
