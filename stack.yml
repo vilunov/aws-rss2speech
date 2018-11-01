@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  TelegramToken:
+    Description: 'Token for Telegram Bot API as received from the Botfather'
+    Type: String
+    NoEcho: true
+  AdminTelegramUsername:
+    Description: "Username of the bot's administrator on Telegram"
+    Type: String
+
+Resources:
+  AudioStoragePolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref AudioStorage
+      PolicyDocument:
+        Statement:
+          Action:
+          - 's3:*'
+          Effect: Allow
+          Resource:
+            'Fn::Join':
+            - ''
+            - - 'arn:aws:s3:::'
+              - !Ref AudioStorage
+              - /*
+          Principal: '*'
+
+  FeedUpdatesQueue:
+    Type: 'AWS::SQS::Queue'
+    Properties: {}
+  AudioStorage:
+    Type: 'AWS::S3::Bucket'
+    Properties: {}
+
+  BotInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: 't2.micro'
+      Environment:
+        Variables:
+          TG_TOKEN: !Ref TelegramToken
+          TG_ADMIN: !Ref AdminTelegramUsername
+    DependsOn:
+    - AudioStorage
+    - FeedUpdatesQueue
+  FeedUpdater:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Code:
+        File: lambda.zip
+      Runtime: python3.6
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref AudioStorage
+    DependsOn:
+    - AudioStorage
+    - FeedUpdatesQueue

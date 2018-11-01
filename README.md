@@ -16,3 +16,14 @@ a stream of speech files. It provides Telegram-based
 - **SQS**: communication between RSS updater and Telegram bot service.
 - **S3**: temporary storage of audio files
 - **ECS**: hosting of Telegram bot service.
+
+## Deployment Procedure
+
+**Prepare the application files**
+
+Compress the `lambda` directory into the `lambda.zip` archive:
+
+```zip lambda.zip -r lambda```
+
+
+**Deploy the CloudFormation stack**
