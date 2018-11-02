@@ -1,17 +1,15 @@
-from typing import Tuple, Iterator
+from typing import *
 import os
 import logging
-import datetime
 import dateutil.parser
-import hashlib
+import json
 from contextlib import closing
 
 import boto3
-from boto3 import Session
-from boto3 import resource
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError
 import feedparser
 import psycopg2
+import bs4
 
 
 DB_NAME = 'rss2tg'
@@ -22,36 +20,36 @@ DB_DSN = f"user='{DB_USERNAME}' password='{DB_PASSWORD}' dbname='{DB_NAME}' host
 
 DB_QUERY_FEEDS = 'select id, link from resources where id in (select resource_id from subscriptions);'
 
-
 MAX_TPS = 10
 MAX_CONCURENT_CONNECTIONS = 20
 TASKS = 100
 REQUEST_LIMIT = 1200
 
+TEXT_NEW_POST = u"""New post, author {author}, title {title}."""
+
+AWS_BUCKET = os.environ.get('AWS_BUCKET')
+AWS_REGION = os.environ.get('AWS_REGION')
+AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
+S3_ENTRY_URL = f"http://{AWS_BUCKET}.s3-website.{AWS_REGION}.amazonaws.com/"
+
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("boto3").setLevel(logging.INFO)
 
-conn = psycopg2.connect(DB_DSN)
 
-
-def get_rss_links() -> Iterator[Tuple[int, str]]:
+def get_feeds_urls() -> Iterator[Tuple[int, str]]:
     """
     Get all feeds with subscriptions
-    :return: iterator of feed ids and links
+    :return: iterator of feed ids and urls
     """
+    conn = psycopg2.connect(DB_DSN)
+
     curs = conn.cursor()
     curs.execute(DB_QUERY_FEEDS)
     for i in curs:
         yield i
+
     conn.rollback()
-
-
-def handler(event, context):
-    pass
-
-
-# это из оригинального проекта
 
 
 def split_content_by_dot(soup, max_len):
@@ -78,78 +76,76 @@ def split_content_by_dot(soup, max_len):
             start = index
 
 
-def get_entries(feed):
-    NEW_POST = u"""New post, author {author}, title {title} {content}"""
+def get_entries(feed) -> Iterator[dict]:
+    """
+    Extract entries from feed
+    :param feed: feed as returned by feedparser
+    :return: iterator of dictionaries
+    """
     for entry in feed.entries:
-        if "http" in entry.id:
-            nid = hashlib.md5(str(entry.id))
-            entry.id = nid.hexdigest()
         entry_content = entry.content[0].value
-        soup = BeautifulSoup(entry_content, 'html.parser')
-        chunks = split_content_by_dot(soup, REQUEST_LIMIT-len(NEW_POST))
-        chunks = list(chunks)
+        soup = bs4.BeautifulSoup(entry_content, 'html.parser')
+        chunks = split_content_by_dot(soup, REQUEST_LIMIT)
         published = dateutil.parser.parse(entry.published)
+        yield dict(
+            content=TEXT_NEW_POST.format(author=entry.author, title=entry.title),
+            id="%s_%d" % (entry.id, 0),
+            title=entry.title,
+            published=published,
+        )
         for i, chunk in enumerate(chunks):
-            if i == 0:
-                chunk = NEW_POST.format(
-                        author=entry.author,
-                        title=entry.title,
-                        content=chunk)
             yield dict(
                 content=chunk,
-                id="%s_%d" % (entry.id, i),
+                id="%s_%d" % (entry.id, i + 1),
                 title=entry.title,
-                published=published - datetime.timedelta(0, i),
+                published=published,
             )
-            remaining = chunk
 
 
-def lambda_handler(event, context):
-    rss = event['rss']
-    bucket_name = event['bucket']
-    logging.info("Processing url: %s" % rss)
-    logging.info("Using bucket: %s" % bucket_name)
+def handle_entry(entry, feed_id, polly, bucket, sqs, files=None):
+    """
+    Converts an entry to speech and uploads the audio file to S3
+    """
+    if files is None:
+        files = set(o.key for o in bucket.objects.all())
+    filename = f"{feed_id}/{entry['id']}.mp3"
 
-    session = Session(region_name="us-west-2")
-    polly = session.client("polly")
-    s3 = resource('s3')
-    bucket = s3.Bucket(bucket_name)
+    if filename in files:
+        logging.info(
+            f"Article \"{entry['title']}\" with id {entry['id']} already exist, skipping")
+        return
 
-    logging.info("getting list of existing objects in the given bucket")
+    try:
+        logging.info(f"Next entry, size: {len(entry['content'])}")
+        response = polly.synthesize_speech(
+                Text=entry['content'], OutputFormat='mp3', VoiceId='Joanna')
+        with closing(response["AudioStream"]) as stream:
+            bucket.put_object(Key=filename, Body=stream.read())
+
+        message = dict(
+            filename=filename,
+            feed_id=feed_id,
+            text=entry['content']
+        )
+        sqs.send_message(QueueUrl=AWS_SQS_QUEUE_URL, MessageBody=json.dumps(message))
+    except BotoCoreError as error:
+        logging.error(error)
+
+
+def handler(event, context):
+    polly = boto3.client('polly')
+    s3 = boto3.client('s3')
+    sqs = boto3.client('sqs')
+
+    bucket = s3.Bucket(AWS_BUCKET)
     files = set(o.key for o in bucket.objects.all())
 
-    feed = feedparser.parse(rss)
-
-    title = feed['feed']['title']
-    fg = FeedGenerator()
-    fg.load_extension('podcast')
-    fg.title('Audio podcast based on: %s' % title)
-    fg.link(href=feed.feed.link, rel='alternate')
-    fg.subtitle(feed.feed.description)
-
-    ENTRY_URL = "http://{bucket}.s3-website.{region}.amazonaws.com/{filename}"
-
-    for entry in get_entries(feed):
-        filename = "%s.mp3" % entry['id']
-        fe = fg.add_entry()
-        fe.id(entry['id'])
-        fe.title(entry['title'])
-        fe.published(entry['published'])
-        entry_url = ENTRY_URL.format(bucket=bucket_name, filename=filename, region=os.environ["AWS_REGION"])
-        fe.enclosure(entry_url, 0, 'audio/mpeg')
-        if filename in files:
-            logging.info('Article "%s" with id %s already exist, skipping.'
-                         % (entry['title'], entry['id']))
-            continue
+    for feed_id, url in get_feeds_urls():
         try:
-            logging.info("Next entry, size: %d" % len(entry['content']))
-            logging.debug("Content: %s" % entry['content'])
-            response = polly.synthesize_speech(
-                    Text=entry['content'],
-                    OutputFormat="mp3",
-                    VoiceId="Joanna")
-            with closing(response["AudioStream"]) as stream:
-                bucket.put_object(Key=filename, Body=stream.read())
-        except BotoCoreError as error:
-            logging.error(error)
-    bucket.put_object(Key='podcast.xml', Body=fg.rss_str(pretty=True))
+            feed = feedparser.parse(url)
+            for entry in get_entries(feed):
+                handle_entry(entry, feed_id, polly, bucket, sqs, files)
+        except Exception as e:
+            logging.error(
+                'Exception caught while parsing a feed',
+                exc_info=e, extra=dict(feed_url=url))
