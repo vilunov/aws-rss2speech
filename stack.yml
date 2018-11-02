@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Parameters:
   TelegramToken:
-    Description: 'Token for Telegram Bot API as received from the Botfather'
+    Description: 'Token for Telegram Bot API as received from the BotFather'
     Type: String
     NoEcho: true
   AdminTelegramUsername:
@@ -33,6 +33,12 @@ Resources:
   AudioStorage:
     Type: 'AWS::S3::Bucket'
     Properties: {}
+  SettingsDB:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      Engine: postgres
+      EngineVersion: '10.5'
+      DBInstanceClass: db.t2.micro
 
   BotInstance:
     Type: 'AWS::EC2::Instance'
@@ -45,6 +51,7 @@ Resources:
     DependsOn:
     - AudioStorage
     - FeedUpdatesQueue
+    - SettingsDB
   FeedUpdater:
     Type: "AWS::Lambda::Function"
     Properties:
@@ -57,3 +64,4 @@ Resources:
     DependsOn:
     - AudioStorage
     - FeedUpdatesQueue
+    - SettingsDB
