@@ -41,7 +41,7 @@ Resources:
       MasterUsername: 'rss2tg'
       MasterUserPassword: 'rss2tg1234'
       AllocatedStorage: !Ref AllocatedStorageDB
-      BackupRetentionPeriod: 0d
+      BackupRetentionPeriod: 0
 
   # Access policies
   AudioStoragePolicy:
