@@ -4,6 +4,7 @@ from telegram.ext import Updater, CommandHandler
 
 import settings
 import handlers
+import sqs
 
 request_kwargs = dict(proxy_url=settings.TG_PROXY) if hasattr(settings, 'TG_PROXY') else {}
 updater = Updater(token=settings.TG_TOKEN, request_kwargs=request_kwargs)
@@ -24,4 +25,5 @@ if __name__ == '__main__':
         dispatcher.add_handler(CommandHandler(command, handler))
     dispatcher.add_handler(CommandHandler('subscribe', handlers.subscribe, pass_args=True))
 
-    updater.start_polling()
+    queue = updater.start_polling()
+    sqs.start_fetching(updater.bot, settings.AWS_SQS_URL)

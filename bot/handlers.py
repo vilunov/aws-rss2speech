@@ -1,10 +1,8 @@
-import psycopg2
-
 from db import *
 
 
 def start(bot, update):
-    conn = psycopg2.connect(DB_DSN)
+    conn = connection()
 
     curs = conn.cursor()
     curs.execute(SQL_REGISTER, (update.message.chat_id, update.message.from_user.username,))
@@ -14,7 +12,7 @@ def start(bot, update):
 
 
 def list_all_subscriptions(bot, update):
-    conn = psycopg2.connect(DB_DSN)
+    conn = connection()
 
     curs = conn.cursor()
     curs.execute(SQL_SUBSCRIPTIONS, (update.message.chat_id,))
@@ -26,7 +24,7 @@ def list_all_subscriptions(bot, update):
 
 
 def info(bot, update):
-    conn = psycopg2.connect(DB_DSN)
+    conn = connection()
 
     curs = conn.cursor()
     curs.execute(SQL_INFO, (update.message.chat_id,))
@@ -48,7 +46,7 @@ def modify(bot, update):
 
 
 def subscribe(bot, update, args):
-    conn = psycopg2.connect(DB_DSN)
+    conn = connection()
     if len(args) != 1:
         bot.send_message(chat_id=update.message.chat_id, text='Specify only one argument ples')
         return

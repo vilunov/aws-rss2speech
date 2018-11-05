@@ -101,7 +101,7 @@ def get_entries(feed) -> Iterator[dict]:
             )
 
 
-def handle_entry(entry, feed_id, polly, bucket, sqs, files=None):
+def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files=None):
     """
     Converts an entry to speech and uploads the audio file to S3
     """
@@ -122,10 +122,9 @@ def handle_entry(entry, feed_id, polly, bucket, sqs, files=None):
             bucket.put_object(Key=filename, Body=stream.read())
 
         message = dict(
-            filename=filename,
+            filepath=bucket_url + filename,
             feed_id=feed_id,
-            text=entry['content']
-        )
+            text=entry['content'])
         sqs.send_message(QueueUrl=AWS_SQS_QUEUE_URL, MessageBody=json.dumps(message))
     except BotoCoreError as error:
         logging.error(error)
@@ -133,8 +132,10 @@ def handle_entry(entry, feed_id, polly, bucket, sqs, files=None):
 
 def handler(event, context):
     polly = boto3.client('polly')
-    s3 = boto3.client('s3')
+    s3 = boto3.resource('s3')
     sqs = boto3.client('sqs')
+    path = boto3.client('s3').get_bucket_location(Bucket=AWS_BUCKET)
+    bucket_url = f"https://s3-{path['LocationConstraint']}.amazonaws.com/{AWS_BUCKET}/"
 
     bucket = s3.Bucket(AWS_BUCKET)
     files = set(o.key for o in bucket.objects.all())
@@ -143,7 +144,7 @@ def handler(event, context):
         try:
             feed = feedparser.parse(url)
             for entry in get_entries(feed):
-                handle_entry(entry, feed_id, polly, bucket, sqs, files)
+                handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files)
         except Exception as e:
             logging.error(
                 'Exception caught while parsing a feed',
