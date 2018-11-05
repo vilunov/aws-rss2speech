@@ -13,10 +13,11 @@ import bs4
 
 
 DB_NAME = 'rss2tg'
-DB_HOST = os.environ.get('DB_HOST')
+DB_HOSTNAME = os.environ.get('DB_HOSTNAME')
+DB_HOSTPORT = os.environ.get('DB_HOSTPORT', '5432')
 DB_USERNAME = 'rss2tg'
 DB_PASSWORD = 'rss2tg'
-DB_DSN = f"user='{DB_USERNAME}' password='{DB_PASSWORD}' dbname='{DB_NAME}' host='{DB_HOST}'"
+DB_DSN = f"user='{DB_USERNAME}' password='{DB_PASSWORD}' dbname='{DB_NAME}' host='{DB_HOSTNAME}' port={DB_HOSTPORT}"
 
 DB_QUERY_FEEDS = 'select id, link from resources where id in (select resource_id from subscriptions);'
 
@@ -28,9 +29,7 @@ REQUEST_LIMIT = 1200
 TEXT_NEW_POST = u"""New post, author {author}, title {title}."""
 
 AWS_BUCKET = os.environ.get('AWS_BUCKET')
-AWS_REGION = os.environ.get('AWS_REGION')
 AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
-S3_ENTRY_URL = f"http://{AWS_BUCKET}.s3-website.{AWS_REGION}.amazonaws.com/"
 
 
 logging.basicConfig(level=logging.INFO)

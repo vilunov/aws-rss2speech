@@ -21,6 +21,10 @@ a stream of speech files. It provides Telegram-based
 
 **Prepare the application files**
 
+Install all dependencies inside `lambda` directory:
+
+```pip install -r requirements.txt -t .```
+
 Compress the `lambda` directory into the `lambda.zip` archive:
 
 ```zip lambda.zip -r lambda```

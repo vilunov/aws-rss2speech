@@ -19,12 +19,7 @@ Resources:
           Action:
           - 's3:*'
           Effect: Allow
-          Resource:
-            'Fn::Join':
-            - ''
-            - - 'arn:aws:s3:::'
-              - !Ref AudioStorage
-              - /*
+          Resource: !Join ['', ['arn:aws:s3:::', !Ref AudioStorage, '/*']]
           Principal: '*'
 
   FeedUpdatesQueue:
@@ -39,6 +34,9 @@ Resources:
       Engine: postgres
       EngineVersion: '10.5'
       DBInstanceClass: db.t2.micro
+      DBName: 'rss2tg'
+      MasterUsername: 'rss2tg'
+      MasterPassword: 'rss2tg'
 
   BotInstance:
     Type: 'AWS::EC2::Instance'
@@ -52,6 +50,7 @@ Resources:
     - AudioStorage
     - FeedUpdatesQueue
     - SettingsDB
+
   FeedUpdater:
     Type: "AWS::Lambda::Function"
     Properties:
@@ -60,8 +59,12 @@ Resources:
       Runtime: python3.6
       Environment:
         Variables:
-          S3_BUCKET: !Ref AudioStorage
+          AWS_BUCKET: !Ref AudioStorage
+          AWS_SQS_QUEUE_URL: !Ref FeedUpdatesQueue
+          DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
+          DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
     DependsOn:
+    - BotInstance
     - AudioStorage
     - FeedUpdatesQueue
     - SettingsDB
