@@ -12,6 +12,10 @@ Parameters:
     Description: 'Storage allocated for the settings database'
     Type: String
     Default: '20'
+  FeedUpdateSchedule:
+    Description: 'Schedule rule for triggering the update of feeds'
+    Type: String
+    Default: 'cron(*/5 * * * * *)'
 
 Resources:
   # Storages and communication mediums
@@ -122,3 +126,13 @@ Resources:
     - AudioStorage
     - FeedUpdatesQueue
     - SettingsDB
+
+  FeedUpdaterTriggerer:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Schedule: !Ref FeedUpdateSchedule
+      Targets:
+      - Arn: !GetAtt FeedUpdater.Arn
+        Id: TriggerFeedUpdater
+    DependsOn:
+    - FeedUpdater
