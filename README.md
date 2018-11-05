@@ -55,5 +55,5 @@ TG_TOKEN=<token>
 TG_ADMIN=<admin_username>
 aws cloudformation deploy --template-file stack.output.yml \
  --parameter-overrides TelegramToken=$TG_TOKEN AdminTelegramUsername=$TG_ADMIN \
- --stack-name rsstotg 
+ --capabilities CAPABILITY_IAM --stack-name rsstotg 
 ```

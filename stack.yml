@@ -14,18 +14,7 @@ Parameters:
     Default: '20'
 
 Resources:
-  AudioStoragePolicy:
-    Type: 'AWS::S3::BucketPolicy'
-    Properties:
-      Bucket: !Ref AudioStorage
-      PolicyDocument:
-        Statement:
-          Action:
-          - 's3:*'
-          Effect: Allow
-          Resource: !Join ['', ['arn:aws:s3:::', !Ref AudioStorage, '/*']]
-          Principal: '*'
-
+  # Storages and communication mediums
   FeedUpdatesQueue:
     Type: 'AWS::SQS::Queue'
     Properties: {}
@@ -43,6 +32,47 @@ Resources:
       MasterUserPassword: 'rss2tg1234'
       AllocatedStorage: !Ref AllocatedStorageDB
 
+  # Access policies
+  AudioStoragePolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref AudioStorage
+      PolicyDocument:
+        Statement:
+          Action:
+          - 's3:*'
+          Effect: Allow
+          Resource: !GetAtt AudioStorage.Arn
+          Principal: '*'
+    DependsOn:
+    - AudioStorage
+  FeedUpdaterRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Effect: Allow
+              Action: "s3:*"
+              Resource: !GetAtt AudioStorage.Arn
+            - Effect: Allow
+              Action: "sqs:SendMessage"
+              Resource: !GetAtt FeedUpdatesQueue.Arn
+    DependsOn:
+    - AudioStorage
+    - FeedUpdatesQueue
+
+  # Computing services
   BotInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
@@ -56,22 +86,24 @@ Resources:
     - FeedUpdatesQueue
     - SettingsDB
     Metadata:
-        AWS::CloudFormation::Init:
-          sources:
-            ~/project/ : "https://github.com/vilunov/aws-rss2speech/tarball/master"
-          commands:
-            init_db:
-              command: "python bot/init_db.py"
-              cwd: "~/project"
-              env: &env
-                AWS_BUCKET: !Ref AudioStorage
-                AWS_SQS_QUEUE_URL: !Ref FeedUpdatesQueue
-                DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
-                DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
-            deploy_bot:
-              command: "python bot/bot.py"
-              cwd: "~/project"
-              env: *env
+      AWS::CloudFormation::Init:
+        sources:
+          ~/project/ : "https://github.com/vilunov/aws-rss2speech/tarball/master"
+        commands:
+          init_db:
+            command: "python bot/init_db.py"
+            cwd: "~/project"
+            env:
+              DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
+              DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
+          deploy_bot:
+            command: "python bot/bot.py"
+            cwd: "~/project"
+            env:
+              AWS_BUCKET: !Ref AudioStorage
+              AWS_SQS_QUEUE_URL: !Ref FeedUpdatesQueue
+              DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
+              DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
 
   FeedUpdater:
     Type: "AWS::Lambda::Function"
@@ -80,9 +112,15 @@ Resources:
         ZipFile: lambda.zip
       Handler: index.lambda.handler
       Runtime: python3.6
+      Role: !Ref FeedUpdaterRole
       Environment:
-        Variables: *env
+        Variables:
+          AWS_BUCKET: !Ref AudioStorage
+          AWS_SQS_QUEUE_URL: !Ref FeedUpdatesQueue
+          DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
+          DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
     DependsOn:
+    - FeedUpdaterRole
     - BotInstance
     - AudioStorage
     - FeedUpdatesQueue
