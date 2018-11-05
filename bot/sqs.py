@@ -39,3 +39,6 @@ def start_fetching(bot, queue_url):
         users_feeds_cache = dict()
         for msg in resp['Messages']:
             handle_message(bot, msg, conn, users_feeds_cache)
+            sqs.delete_message(
+                QueueUrl=queue_url,
+                ReceiptHandle=msg['ReceiptHandle'])
