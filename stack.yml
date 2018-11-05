@@ -82,6 +82,37 @@ Resources:
     DependsOn:
     - AudioStorage
     - FeedUpdatesQueue
+  BotInstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action:
+          - "sts:AssumeRole"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action: "s3:*"
+            Resource: !GetAtt AudioStorage.Arn
+          - Effect: Allow
+            Action: "sqs:*"
+            Resource: !GetAtt FeedUpdatesQueue.Arn
+    DependsOn:
+    - AudioStorage
+    - FeedUpdatesQueue
+  BotInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: '/'
+      Roles:
+      - !Ref BotInstanceRole
 
   # Computing services
   BotInstance:
@@ -90,6 +121,7 @@ Resources:
       InstanceType: 't2.micro'
       ImageId: 'ami-0ff8a91507f77f867'
       KeyName: !Ref InstanceKeyName
+      IamInstanceProfile: !Ref BotInstanceProfile
       UserData:
         'Fn::Base64': !Sub |
           #!/bin/bash -ex

@@ -26,7 +26,8 @@ SQL_ADD_RESOURCE = (
     'returning id;')
 
 SQL_SUBSCRIBE = (
-    'insert into subscriptions(user_id, resource_id) values (%s, %s)'
+    'insert into subscriptions(user_id, resource_id) '
+    'values ((select id from users where telegram_id = %s), %s)'
     'on conflict (user_id, resource_id) do nothing;')
 
 SQL_REGISTER = (
