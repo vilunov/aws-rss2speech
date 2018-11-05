@@ -4,7 +4,13 @@ from db import *
 
 
 def start(bot, update):
-    bot.send_message(chat_id=update.message.chat_id, text="I'm a bot, please talk to me!")
+    conn = psycopg2.connect(DB_DSN)
+
+    curs = conn.cursor()
+    curs.execute(SQL_REGISTER, (update.message.chat_id, update.message.from_user.username,))
+    conn.commit()
+
+    bot.send_message(chat_id=update.message.chat_id, text="Welcome to Podcast Bot!")
 
 
 def list_all_subscriptions(bot, update):

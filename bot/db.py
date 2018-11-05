@@ -25,3 +25,8 @@ SQL_ADD_RESOURCE = (
 SQL_SUBSCRIBE = (
     'insert into subscriptions(user_id, resource_id) values (%s, %s)'
     'on conflict (user_id, resource_id) do nothing;')
+
+SQL_REGISTER = (
+    'insert into users(telegram_id, username) values (%s, %s)'
+    'on conflict (telegram_id) do update set username = EXCLUDED.username'
+    'returning id;')
