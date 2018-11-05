@@ -5,3 +5,5 @@ venv/
 
 /lambda/*/
 /lambda/feedparser.py
+
+stack.output.yml
