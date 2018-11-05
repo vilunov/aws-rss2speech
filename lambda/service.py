@@ -134,8 +134,7 @@ def handler(event, context):
     polly = boto3.client('polly')
     s3 = boto3.resource('s3')
     sqs = boto3.client('sqs')
-    path = boto3.client('s3').get_bucket_location(Bucket=AWS_BUCKET)
-    bucket_url = f"https://s3-{path['LocationConstraint']}.amazonaws.com/{AWS_BUCKET}/"
+    bucket_url = f"https://s3.amazonaws.com/{AWS_BUCKET}/"
 
     bucket = s3.Bucket(AWS_BUCKET)
     files = set(o.key for o in bucket.objects.all())

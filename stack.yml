@@ -50,11 +50,11 @@ Resources:
       Bucket: !Ref AudioStorage
       PolicyDocument:
         Statement:
-          Action:
-          - 's3:*'
-          Effect: Allow
-          Resource: !GetAtt AudioStorage.Arn
-          Principal: '*'
+          - Action:
+            - 's3:GetObject'
+            Effect: Allow
+            Resource: !Join ['', [!GetAtt AudioStorage.Arn, '/*']]
+            Principal: '*'
     DependsOn:
     - AudioStorage
   FeedUpdaterRole:
@@ -75,10 +75,13 @@ Resources:
             Statement:
             - Effect: Allow
               Action: "s3:*"
-              Resource: !GetAtt AudioStorage.Arn
+              Resource: "*"
             - Effect: Allow
               Action: "sqs:SendMessage"
               Resource: !GetAtt FeedUpdatesQueue.Arn
+            - Effect: Allow
+              Action: "polly:*"
+              Resource: "*"
     DependsOn:
     - AudioStorage
     - FeedUpdatesQueue
