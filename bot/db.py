@@ -36,9 +36,9 @@ SQL_REGISTER = (
     'returning id;')
 
 SQL_USERS_BY_RESOURCE_ID = (
-    'select telegram_id from users u '
-    'where u.id in '
-    '(select user_id from subscriptions where resource_id = %s);')
+    'select u.telegram_id, s.s_time from subscriptions s '
+    'inner join users u on s.user_id = u.id '
+    'where s.resource_id = %s;')
 
 
 def connection() -> psycopg2.extensions.connection:

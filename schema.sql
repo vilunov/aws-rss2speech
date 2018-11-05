@@ -12,6 +12,7 @@ CREATE TABLE resources(
 CREATE TABLE subscriptions(
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   resource_id INTEGER REFERENCES resources(id) ON DELETE CASCADE,
+  s_time TIMESTAMP DEFAULT now(),
   primary key (user_id, resource_id)
 );
 

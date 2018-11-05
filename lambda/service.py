@@ -124,7 +124,8 @@ def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files=None):
         message = dict(
             filepath=bucket_url + filename,
             feed_id=feed_id,
-            text=entry['content'])
+            text=entry['content'],
+            published=entry['published'])
         sqs.send_message(QueueUrl=AWS_SQS_QUEUE_URL, MessageBody=json.dumps(message))
     except BotoCoreError as error:
         logging.error(error)

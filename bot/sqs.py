@@ -7,24 +7,26 @@ import db
 sqs = boto3.client('sqs')
 
 
-def handle_message(bot, msg, conn, users_feeds_cache: Dict[int, List[int]]):
+def handle_message(bot, msg, conn, users_feeds_cache: Dict[int, List[Tuple[int, Any]]]):
     body = json.loads(msg['Body'])
 
     filepath: str = body['filepath']
     feed_id: int = body['feed_id']
     text: str = body['text']
+    published: str = body['published']
 
     if feed_id not in users_feeds_cache:
         curs = conn.cursor()
         curs.execute(db.SQL_USERS_BY_RESOURCE_ID, (feed_id,))
-        users_feeds_cache[feed_id] = [i[0] for i in curs.fetchall()]
+        users_feeds_cache[feed_id] = [i for i in curs.fetchall()]
         conn.rollback()
-    users: List[int] = users_feeds_cache[feed_id]
+    users: List[(int, Any)] = users_feeds_cache[feed_id]
     print(users)
 
-    for user in users:
-        bot.send_audio(chat_id=user, audio=filepath)
-        bot.send_message(chat_id=user, text=text)
+    for user, s_time in users:
+        if published > s_time:
+            bot.send_audio(chat_id=user, audio=filepath)
+            bot.send_message(chat_id=user, text=text)
 
 
 def start_fetching(bot, queue_url):
