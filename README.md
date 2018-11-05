@@ -40,9 +40,15 @@ AWS_REGION=us-east-1
 aws s3api create-bucket --bucket $AWS_BUCKET --region $AWS_REGION
 ```
 
+Upload the feed updater code to S3
+
+```sh
+aws s3 cp lambda.zip s3://$AWS_BUCKET/lambda.zip
+```
+
 Package the stack:
 
-```
+```sh
 aws cloudformation package --template stack.yml \
  --region $AWS_REGION --s3-bucket $AWS_BUCKET \
  --output-template-file stack.output.yml
@@ -53,7 +59,11 @@ And deploy it:
 ```sh
 TG_TOKEN=<token>
 TG_ADMIN=<admin_username>
+AWS_KEY_NAME=<name_of_your_ssh_key>
 aws cloudformation deploy --template-file stack.output.yml \
- --parameter-overrides TelegramToken=$TG_TOKEN AdminTelegramUsername=$TG_ADMIN \
- --capabilities CAPABILITY_IAM --stack-name rsstotg 
+ --parameter-overrides TelegramToken=$TG_TOKEN \
+  AdminTelegramUsername=$TG_ADMIN \
+  S3SetupStorage=$AWS_BUCKET \
+  InstanceKeyName=$AWS_KEY_NAME \
+ --capabilities CAPABILITY_IAM --stack-name rsstotg
 ```

@@ -12,6 +12,16 @@ Parameters:
     Description: 'Storage allocated for the settings database'
     Type: String
     Default: '20'
+  FeedUpdateSchedule:
+    Description: 'Schedule of updating the feeds'
+    Type: String
+    Default: 'cron(0/5 * * * ? *)'
+  S3SetupStorage:
+    Description: 'Bucket with files for starting up the stack, must have file /lambda.zip'
+    Type: String
+  InstanceKeyName:
+    Description: 'Name of your key for connecting to bot instance via SSH'
+    Type: String
 
 Resources:
   # Storages and communication mediums
@@ -77,37 +87,53 @@ Resources:
     Type: 'AWS::EC2::Instance'
     Properties:
       InstanceType: 't2.micro'
-      ImageId: 'ami-0ac019f4fcb7cb7e6'
-    DependsOn:
-    - AudioStorage
-    - FeedUpdatesQueue
-    - SettingsDB
+      ImageId: 'ami-0ff8a91507f77f867'
+      KeyName: !Ref InstanceKeyName
+      UserData:
+        'Fn::Base64': !Sub |
+          #!/bin/bash -ex
+          /opt/aws/bin/cfn-init -s ${AWS::StackName} -r BotInstance --region ${AWS::Region}
     Metadata:
       AWS::CloudFormation::Init:
-        sources:
-          ~/project/ : "https://github.com/vilunov/aws-rss2speech/tarball/master"
-        commands:
-          init_db:
-            command: "python bot/init_db.py"
-            cwd: "~/project"
-            env:
-              DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
-              DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
-          deploy_bot:
-            command: "python bot/bot.py"
-            cwd: "~/project"
-            env:
-              AWS_BUCKET: !Ref AudioStorage
-              AWS_SQS_QUEUE_URL: !Ref FeedUpdatesQueue
-              DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
-              DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
+        config:
+          file:
+            '/root/.aws/config':
+              Fn::Join:
+                - ''
+                - - '[default]\n'
+                  - 'region = '
+                  - !Ref AWS::Region
+                  - '\n'
+          sources:
+            /opt/rss2tg/ : "https://github.com/vilunov/aws-rss2speech/tarball/master"
+          commands:
+            0000_python:
+              command: "yum install -y python3.6"
+            0001_requirements:
+              command: "pip-3.6 install -r bot/requirements.txt"
+              cwd: "/opt/rss2tg/"
+            0002_init:
+              command: "python3.6 bot/init_db.py"
+              cwd: "/opt/rss2tg/"
+              env:
+                DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
+                DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
+            0003_bot:
+              command: "python3.6 bot/bot.py"
+              cwd: "/opt/rss2tg/"
+              env:
+                AWS_BUCKET: !Ref AudioStorage
+                AWS_SQS_QUEUE_URL: !Ref FeedUpdatesQueue
+                DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
+                DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
 
   FeedUpdater:
     Type: "AWS::Lambda::Function"
     Properties:
       Code:
-        ZipFile: lambda.zip
-      Handler: index.service.handler
+        S3Bucket: !Ref S3SetupStorage
+        S3Key: 'lambda.zip'
+      Handler: service.handler
       Runtime: python3.6
       Role: !GetAtt FeedUpdaterRole.Arn
       Environment:
@@ -119,16 +145,14 @@ Resources:
       Timeout: 120
     DependsOn:
     - FeedUpdaterRole
-    - BotInstance
     - AudioStorage
     - FeedUpdatesQueue
-    - SettingsDB
 
   FeedUpdaterTriggerer:
     Type: "AWS::Events::Rule"
     Properties:
       Description: 'Schedule rule for triggering the update of feeds'
-      ScheduleExpression: 'cron(0/5 * * * ? *)'
+      ScheduleExpression: !Ref FeedUpdateSchedule
       Targets:
       - Arn: !GetAtt FeedUpdater.Arn
         Id: TriggerFeedUpdater
