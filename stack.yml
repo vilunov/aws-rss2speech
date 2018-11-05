@@ -102,13 +102,9 @@ Resources:
               python36: []
           files:
             '/root/.aws/config':
-              content:
-                Fn::Join:
-                - ''
-                - - '[default]\n'
-                  - 'region = '
-                  - !Ref AWS::Region
-                  - '\n'
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
               mode: '000777'
               owner: root
               group: root

@@ -29,7 +29,7 @@ def handle_message(bot, msg, conn, users_feeds_cache: Dict[int, List[int]]):
 def start_fetching(bot, queue_url):
     while True:
         # Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sqs.html
-        resp = sqs.receive_messages(
+        resp = sqs.receive_message(
             QueueUrl=queue_url,
             AttributeNames=['All'],
             MaxNumberOfMessages=10,
