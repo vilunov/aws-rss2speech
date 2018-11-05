@@ -77,6 +77,7 @@ Resources:
     Type: 'AWS::EC2::Instance'
     Properties:
       InstanceType: 't2.micro'
+      ImageId: 'ami-0ac019f4fcb7cb7e6'
     DependsOn:
     - AudioStorage
     - FeedUpdatesQueue
@@ -108,7 +109,7 @@ Resources:
         ZipFile: lambda.zip
       Handler: index.lambda.handler
       Runtime: python3.6
-      Role: !Ref FeedUpdaterRole
+      Role: !GetAtt FeedUpdaterRole.Arn
       Environment:
         Variables:
           AWS_BUCKET: !Ref AudioStorage
