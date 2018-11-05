@@ -41,6 +41,7 @@ Resources:
       MasterUsername: 'rss2tg'
       MasterUserPassword: 'rss2tg1234'
       AllocatedStorage: !Ref AllocatedStorageDB
+      BackupRetentionPeriod: 0d
 
   # Access policies
   AudioStoragePolicy:
@@ -96,19 +97,24 @@ Resources:
     Metadata:
       AWS::CloudFormation::Init:
         config:
-          file:
+          packages:
+            yum:
+              python36: []
+          files:
             '/root/.aws/config':
-              Fn::Join:
+              content:
+                Fn::Join:
                 - ''
                 - - '[default]\n'
                   - 'region = '
                   - !Ref AWS::Region
                   - '\n'
+              mode: '000777'
+              owner: root
+              group: root
           sources:
             /opt/rss2tg/ : "https://github.com/vilunov/aws-rss2speech/tarball/master"
           commands:
-            0000_python:
-              command: "yum install -y python3.6"
             0001_requirements:
               command: "pip-3.6 install -r bot/requirements.txt"
               cwd: "/opt/rss2tg/"
