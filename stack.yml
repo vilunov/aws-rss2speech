@@ -73,6 +73,7 @@ Resources:
     Properties:
       Code:
         ZipFile: lambda.zip
+      Handler: index.lambda.handler
       Runtime: python3.6
       Environment:
         Variables:

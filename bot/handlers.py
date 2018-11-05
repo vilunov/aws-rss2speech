@@ -1,5 +1,7 @@
-from bot import *
 import psycopg2
+
+from db import *
+
 
 def start(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text="I'm a bot, please talk to me!")
@@ -9,20 +11,10 @@ def list_all_subscriptions(bot, update):
     conn = psycopg2.connect(DB_DSN)
 
     curs = conn.cursor()
-    curs.execute("""
-                    SELECT link;
-                      FROM subscriptions s
-                      
-                INNER JOIN resources r 
-                        ON s.resource_id = r.id
-                
-                INNER JOIN users u
-                        ON s.user_id = u.id 
-                       AND u.telegram_id = %s
-                """, update.message.chat_id)
+    curs.execute(SQL_SUBSCRIPTIONS, (update.message.chat_id,))
 
-    bot.send_message(chat_id=update.message.chat_id, text=f"List of your subscriptions: <br>"
-                                                          f"{'<br>'.join(['- '+ link[0] for link in curs])}")
+    text = 'List of your subscriptions:\n' + ('\n'.join('- ' + link[0] for link in curs) or 'none')
+    bot.send_message(chat_id=update.message.chat_id, text=text)
 
     conn.rollback()
 
@@ -31,20 +23,18 @@ def info(bot, update):
     conn = psycopg2.connect(DB_DSN)
 
     curs = conn.cursor()
-    curs.execute("""
-                    SELECT notifications_on
-                      FROM settings
-                    
-                INNER JOIN users u 
-                        ON s.user_id = u.id
-                       AND u.telegram_id = %s
-                """, update.message.chat_id)
-
-    user_settings = curs[0]
-    bot.send_message(chat_id=update.message.chat_id, text=f"Settings for your subscription: "
-                                                          f"- Notifications On: {user_settings[0]}")
-
+    curs.execute(SQL_INFO, (update.message.chat_id,))
+    user_settings = curs.fetchone()
     conn.rollback()
+
+    if user_settings:
+        text = (
+            f"Settings for your subscription:\n"
+            f"- Notifications On: {user_settings[0]}")
+    else:
+        text = 'No settings stored for you, sorry'
+
+    bot.send_message(chat_id=update.message.chat_id, text=text)
 
 
 def modify(bot, update):
@@ -53,29 +43,21 @@ def modify(bot, update):
 
 def subscribe(bot, update, args):
     conn = psycopg2.connect(DB_DSN)
+    if len(args) != 1:
+        bot.send_message(chat_id=update.message.chat_id, text='Specify only one argument ples')
+        return
+
     link = args[0]
 
     curs = conn.cursor()
+    curs.execute(SQL_ADD_RESOURCE, (link,))
 
-    curs.execute("""
-              INSERT INTO resources(link)
-                   VALUES (%s)
-              ON CONFLICT (link) DO 
-               UPDATE SET link = EXCLUDED.link
-                RETURNING id;
-                """, link)
+    resource_id = curs.fetchone()[0]
 
-    id = curs[0][0]
-
-    curs.execute("""
-                    INSERT INTO subscriptions(user_id, resource_id)
-                         VALUES (%s, %s)
-                    ON CONFLICT (user_id, resource_id) DO NOTHING
-                """, update.messag.chat_id, id)
+    curs.execute(SQL_SUBSCRIBE, (update.message.chat_id, resource_id))
+    conn.commit()
 
     bot.send_message(chat_id=update.message.chat_id, text="You successfully subscribed for feed!")
-
-    conn.commit()
 
 
 def new_post(bot, update):
