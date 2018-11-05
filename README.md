@@ -19,15 +19,15 @@ a stream of speech files. It provides Telegram-based
 
 ## Deployment Procedure
 
-**Prepare the application files**
+**Prepare the application files using docker**
 
-Install all dependencies inside `lambda` directory:
-
-```pip install -r lambda/requirements.txt -t lambda```
-
-Compress the `lambda` directory into the `lambda.zip` archive:
-
-```zip lambda.zip -r lambda```
+```sh
+docker build -t rss2tg-lambda lambda
+ID=$(docker create rss2tg-lambda /bin/true)
+docker cp $ID:/lambda.zip .
+docker rm $ID
+docker image rm rss2tg-lambda
+```
 
 
 **Deploy the CloudFormation stack**

@@ -120,6 +120,7 @@ Resources:
           AWS_SQS_QUEUE_URL: !Ref FeedUpdatesQueue
           DB_HOSTNAME: !GetAtt SettingsDB.Endpoint.Address
           DB_HOSTPORT: !GetAtt SettingsDB.Endpoint.Port
+      Timeout: 120
     DependsOn:
     - FeedUpdaterRole
     - BotInstance
