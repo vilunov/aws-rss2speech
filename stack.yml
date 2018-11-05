@@ -12,10 +12,6 @@ Parameters:
     Description: 'Storage allocated for the settings database'
     Type: String
     Default: '20'
-  FeedUpdateSchedule:
-    Description: 'Schedule rule for triggering the update of feeds'
-    Type: String
-    Default: 'cron(*/5 * * * * *)'
 
 Resources:
   # Storages and communication mediums
@@ -111,7 +107,7 @@ Resources:
     Properties:
       Code:
         ZipFile: lambda.zip
-      Handler: index.lambda.handler
+      Handler: index.service.handler
       Runtime: python3.6
       Role: !GetAtt FeedUpdaterRole.Arn
       Environment:
@@ -131,7 +127,8 @@ Resources:
   FeedUpdaterTriggerer:
     Type: "AWS::Events::Rule"
     Properties:
-      Schedule: !Ref FeedUpdateSchedule
+      Description: 'Schedule rule for triggering the update of feeds'
+      ScheduleExpression: 'cron(0/5 * * * ? *)'
       Targets:
       - Arn: !GetAtt FeedUpdater.Arn
         Id: TriggerFeedUpdater
