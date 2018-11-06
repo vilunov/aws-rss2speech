@@ -26,4 +26,9 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('subscribe', handlers.subscribe, pass_args=True))
 
     queue = updater.start_polling()
-    sqs.start_fetching(updater.bot, settings.AWS_SQS_URL)
+    while True:
+        try:
+            sqs.start_fetching(updater.bot, settings.AWS_SQS_URL)
+        except Exception as e:
+            print('Exception high level')
+            print(e, type(e))

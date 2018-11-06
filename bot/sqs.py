@@ -29,8 +29,7 @@ def handle_message(bot, msg, conn, users_feeds_cache: Dict[int, List[Tuple[int, 
 
     for user, s_time in users:
         if published > s_time - timedelta(days=1):
-            bot.send_audio(chat_id=user, audio=filepath)
-            bot.send_message(chat_id=user, text=text)
+            bot.send_audio(chat_id=user, audio=filepath, text=text)
 
 
 def start_fetching(bot, queue_url):

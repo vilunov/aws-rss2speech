@@ -36,6 +36,8 @@ AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("boto3").setLevel(logging.INFO)
 
+messages = 0
+
 
 def get_feeds_urls() -> Iterator[Tuple[int, str]]:
     """
@@ -87,7 +89,9 @@ def get_entries(feed) -> Iterator[dict]:
         soup = bs4.BeautifulSoup(entry_content, 'html.parser')
         chunks = split_content_by_dot(soup, REQUEST_LIMIT)
         published = dateutil.parser.parse(entry.published)
-        entry_id = ''.join(i for i in entry.id if i.isalnum()) + '_' + str(datetime.now())
+        date_str = str(datetime.now())
+        entry_id = entry.id + '_' + date_str
+        entry_id = ''.join(i for i in entry_id if i.isalnum())
         yield dict(
             content=TEXT_NEW_POST.format(author=entry.author, title=entry.title),
             id=entry_id + '_' + '0',
@@ -107,6 +111,7 @@ def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files=None):
     """
     Converts an entry to speech and uploads the audio file to S3
     """
+    global messages
     if files is None:
         files = set(o.key for o in bucket.objects.all())
     filename = f"{feed_id}/{entry['id']}.mp3"
@@ -129,11 +134,13 @@ def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files=None):
             text=entry['content'],
             published=int(entry['published'].timestamp()))
         sqs.send_message(QueueUrl=AWS_SQS_QUEUE_URL, MessageBody=json.dumps(message))
+        messages += 1
     except BotoCoreError as error:
         logging.error(error)
 
 
 def handler(event, context):
+    global messages
     polly = boto3.client('polly')
     s3 = boto3.resource('s3')
     sqs = boto3.client('sqs')
@@ -151,3 +158,4 @@ def handler(event, context):
             logging.error(
                 'Exception caught while parsing a feed',
                 exc_info=e, extra=dict(feed_url=url))
+    print('Messages sent to SQS:', messages)
