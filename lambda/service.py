@@ -67,11 +67,11 @@ def split_content_by_dot(soup, max_len):
         if index == start:
             start += 1
         elif index < 0:
-            yield text[start:max]
-            start = max
+            yield text[start:max + 1]
+            start = max + 1
         else:
-            yield text[start:index]
-            start = index
+            yield text[start:index + 1]
+            start = index + 1
 
 
 def get_entries(feed) -> Iterator[dict]:
