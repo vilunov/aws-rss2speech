@@ -85,7 +85,7 @@ def get_entries(feed) -> Iterator[dict]:
         soup = bs4.BeautifulSoup(entry_content, 'html.parser')
         chunks = split_content_by_dot(soup, REQUEST_LIMIT)
         published = dateutil.parser.parse(entry.published)
-        date_str = str(datetime.now())
+        date_str = str(published.timestamp())
         entry_id = entry.id + '_' + date_str
         entry_id = ''.join(i for i in entry_id if i.isalnum())
         yield dict(
