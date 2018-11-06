@@ -67,3 +67,9 @@ aws cloudformation deploy --template-file stack.output.yml \
   InstanceKeyName=$AWS_KEY_NAME \
  --capabilities CAPABILITY_IAM --stack-name rsstotg
 ```
+
+**Make sure that the stack is deployed properly:**
+
+- Check that the CloudWatch rule is set to trigger the Lambda
+- Ensure that the S3 bucket has public access
+- Check other services

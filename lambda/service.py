@@ -1,9 +1,10 @@
-from typing import *
 import os
 import logging
 import dateutil.parser
 import json
+from datetime import datetime
 from contextlib import closing
+from typing import *
 
 import boto3
 from botocore.exceptions import BotoCoreError
@@ -86,16 +87,17 @@ def get_entries(feed) -> Iterator[dict]:
         soup = bs4.BeautifulSoup(entry_content, 'html.parser')
         chunks = split_content_by_dot(soup, REQUEST_LIMIT)
         published = dateutil.parser.parse(entry.published)
+        entry_id = ''.join(i for i in entry.id if i.isalnum()) + '_' + str(datetime.now())
         yield dict(
             content=TEXT_NEW_POST.format(author=entry.author, title=entry.title),
-            id="%s_%d" % (entry.id, 0),
+            id=entry_id + '_' + '0',
             title=entry.title,
             published=published,
         )
         for i, chunk in enumerate(chunks):
             yield dict(
                 content=chunk,
-                id="%s_%d" % (entry.id, i + 1),
+                id=entry_id + '_' + str(i + 1),
                 title=entry.title,
                 published=published,
             )
@@ -125,7 +127,7 @@ def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files=None):
             filepath=bucket_url + filename,
             feed_id=feed_id,
             text=entry['content'],
-            published=entry['published'])
+            published=int(entry['published'].timestamp()))
         sqs.send_message(QueueUrl=AWS_SQS_QUEUE_URL, MessageBody=json.dumps(message))
     except BotoCoreError as error:
         logging.error(error)
