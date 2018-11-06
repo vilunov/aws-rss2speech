@@ -20,3 +20,9 @@ CREATE TABLE settings(
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE PRIMARY KEY,
   notifications_on BOOLEAN DEFAULT TRUE
 );
+
+CREATE TABLE processed_posts(
+  resource_id INTEGER REFERENCES resources(id) ON DELETE CASCADE,
+  post_filename TEXT,
+  primary key (resource_id, post_filename)
+);

@@ -1,5 +1,4 @@
 import os
-import logging
 import dateutil.parser
 import json
 from datetime import datetime
@@ -21,6 +20,8 @@ DB_PASSWORD = 'rss2tg1234'
 DB_DSN = f"user='{DB_USERNAME}' password='{DB_PASSWORD}' dbname='{DB_NAME}' host='{DB_HOSTNAME}' port={DB_HOSTPORT}"
 
 DB_QUERY_FEEDS = 'select id, link from resources where id in (select resource_id from subscriptions);'
+DB_QUERY_GET_PROCESSED = 'select 1 from processed_posts where resource_id = %s and post_filename = %s;'
+DB_QUERY_SET_PROCESSED = 'insert into processed_posts(resource_id, post_filename) values(%s, %s);'
 
 MAX_TPS = 10
 MAX_CONCURENT_CONNECTIONS = 20
@@ -33,25 +34,20 @@ AWS_BUCKET = os.environ.get('AWS_BUCKET')
 AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
 
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("boto3").setLevel(logging.INFO)
-
 messages = 0
 
 
-def get_feeds_urls() -> Iterator[Tuple[int, str]]:
+def get_feeds_urls(conn) -> List[Tuple[int, str]]:
     """
     Get all feeds with subscriptions
     :return: iterator of feed ids and urls
     """
-    conn = psycopg2.connect(DB_DSN)
-
     curs = conn.cursor()
     curs.execute(DB_QUERY_FEEDS)
-    for i in curs:
-        yield i
-
+    feeds = list(curs)
     conn.rollback()
+
+    return feeds
 
 
 def split_content_by_dot(soup, max_len):
@@ -107,22 +103,34 @@ def get_entries(feed) -> Iterator[dict]:
             )
 
 
-def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files=None):
+def is_processed(conn, feed_id, filename):
+    curs = conn.cursor()
+    curs.execute(DB_QUERY_GET_PROCESSED, (feed_id, filename))
+    r = bool(curs.fetchone())
+    conn.rollback()
+    return r
+
+
+def set_processed(conn, feed_id, filename):
+    curs = conn.cursor()
+    curs.execute(DB_QUERY_SET_PROCESSED, (feed_id, filename))
+    conn.commit()
+
+
+def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, conn):
     """
     Converts an entry to speech and uploads the audio file to S3
     """
     global messages
-    if files is None:
-        files = set(o.key for o in bucket.objects.all())
     filename = f"{feed_id}/{entry['id']}.mp3"
 
-    if filename in files:
-        logging.info(
+    if is_processed(conn, feed_id, entry['id']):
+        print(
             f"Article \"{entry['title']}\" with id {entry['id']} already exist, skipping")
         return
 
     try:
-        logging.info(f"Next entry, size: {len(entry['content'])}")
+        print(f"Next entry, size: {len(entry['content'])}")
         response = polly.synthesize_speech(
                 Text=entry['content'], OutputFormat='mp3', VoiceId='Joanna')
         with closing(response["AudioStream"]) as stream:
@@ -136,7 +144,10 @@ def handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files=None):
         sqs.send_message(QueueUrl=AWS_SQS_QUEUE_URL, MessageBody=json.dumps(message))
         messages += 1
     except BotoCoreError as error:
-        logging.error(error)
+        print('Error:', error)
+        return
+
+    set_processed(conn, feed_id, entry['id'])
 
 
 def handler(event, context):
@@ -145,17 +156,16 @@ def handler(event, context):
     s3 = boto3.resource('s3')
     sqs = boto3.client('sqs')
     bucket_url = f"https://s3.amazonaws.com/{AWS_BUCKET}/"
+    conn = psycopg2.connect(DB_DSN)
 
     bucket = s3.Bucket(AWS_BUCKET)
-    files = set(o.key for o in bucket.objects.all())
 
-    for feed_id, url in get_feeds_urls():
+    for feed_id, url in get_feeds_urls(conn):
         try:
             feed = feedparser.parse(url)
             for entry in get_entries(feed):
-                handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, files)
+                handle_entry(entry, feed_id, polly, bucket, sqs, bucket_url, conn)
         except Exception as e:
-            logging.error(
-                'Exception caught while parsing a feed',
-                exc_info=e, extra=dict(feed_url=url))
+            print('Exception caught while parsing a feed', url)
+            print(e, type(e))
     print('Messages sent to SQS:', messages)
